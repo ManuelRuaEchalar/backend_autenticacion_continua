@@ -100,7 +100,7 @@ class ModelService:
             "window_size": self._config.window_size,
             "total_parameters": int(self._model.count_params()),
             "input_shapes": [
-                inp.shape.as_list() for inp in self._model.inputs
+                list(inp.shape) for inp in self._model.inputs
             ],
             "num_layers": len(self._model.layers),
         }

@@ -10,7 +10,7 @@ def test_model_builder_gyro_acc():
     
     assert model.name == "AuthDeepConvLSTM_gyro_acc"
     # gyro_acc expects window_size (128) and 6 channels
-    assert model.input_shape == [(None, 128, 6)]
+    assert model.input_shape == (None, 128, 6)
     # Output should be a single probability
     assert model.output_shape == (None, 1)
 
