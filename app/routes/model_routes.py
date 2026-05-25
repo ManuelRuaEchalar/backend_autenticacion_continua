@@ -28,27 +28,7 @@ def _get_service() -> ModelService:
     return current_app.config["MODEL_SERVICE"]
 
 
-@model_bp.route("/parameters", methods=["GET"])
-def get_parameters():
-    """
-    Endpoint para que los clientes federados descarguen los parámetros
-    (pesos) actuales del modelo global.
 
-    Response:
-        200: archivo binario NPZ con los pesos del modelo.
-        Content-Type: application/octet-stream
-    """
-    service = _get_service()
-    data = service.get_parameters_serialized()
-
-    return Response(
-        data,
-        status=200,
-        mimetype="application/octet-stream",
-        headers={
-            "Content-Disposition": "attachment; filename=global_model_weights.npz",
-        },
-    )
 
 
 @model_bp.route("/info", methods=["GET"])

@@ -64,25 +64,15 @@ class ModelService:
         """
         return self._model.get_weights()
 
-    def get_parameters_serialized(self) -> bytes:
+    def set_weights(self, weights: List[np.ndarray]) -> None:
         """
-        Serializa los parámetros del modelo en formato binario (NPZ)
-        para transmisión eficiente a los clientes.
+        Actualiza los pesos del modelo global en memoria.
+        Usualmente llamado después de la agregación de una ronda federada.
 
-        El formato NPZ es nativo de NumPy, compacto y deserializable
-        directamente en el cliente Android vía TensorFlow Lite.
-
-        Returns:
-            Bytes del archivo NPZ conteniendo todos los pesos.
+        Args:
+            weights: Lista de arrays NumPy con los nuevos parámetros.
         """
-        weights = self.get_parameters()
-        buffer = io.BytesIO()
-        arrays_dict = {
-            f"layer_{i}": w for i, w in enumerate(weights)
-        }
-        np.savez(buffer, **arrays_dict)
-        buffer.seek(0)
-        return buffer.read()
+        self._model.set_weights(weights)
 
     def get_model_info(self) -> Dict[str, Any]:
         """

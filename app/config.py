@@ -48,9 +48,23 @@ class ModelConfig:
 
 
 @dataclass(frozen=True)
+class FLConfig:
+    """
+    Configuración de la estrategia y el servidor de aprendizaje federado (Flower).
+    """
+    grpc_port: int = 8080
+    num_rounds: int = 50
+    fraction_fit: float = 0.3
+    fraction_evaluate: float = 0.2
+    min_fit_clients: int = 2
+    min_evaluate_clients: int = 2
+    min_available_clients: int = 2
+
+
+@dataclass(frozen=True)
 class AppConfig:
     """
-    Configuración general del servidor Flask.
+    Configuración general del servidor Flask y Flower.
     """
 
     host: str = "0.0.0.0"
@@ -58,3 +72,4 @@ class AppConfig:
     debug: bool = True
 
     model: ModelConfig = field(default_factory=ModelConfig)
+    fl: FLConfig = field(default_factory=FLConfig)

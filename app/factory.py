@@ -13,6 +13,7 @@ from flask import Flask
 
 from app.config import AppConfig
 from app.services.model_service import ModelService
+from app.services.federation_service import FederationService
 from app.routes.model_routes import model_bp
 
 
@@ -32,9 +33,12 @@ def create_app(config: AppConfig | None = None) -> Flask:
 
     app = Flask(__name__)
 
-    # ── Inicializar servicio del modelo ────────────────────────────
+    # ── Inicializar servicios ──────────────────────────────────────
     model_service = ModelService(config.model)
+    federation_service = FederationService()
+    
     app.config["MODEL_SERVICE"] = model_service
+    app.config["FEDERATION_SERVICE"] = federation_service
 
     # ── Registrar blueprints ──────────────────────────────────────
     app.register_blueprint(model_bp)
