@@ -7,9 +7,11 @@ Uso:
 """
 
 import argparse
+import threading
 
-from app.config import AppConfig, ModelConfig
+from app.config import AppConfig, ModelConfig, FLConfig
 from app.factory import create_app
+from app.fl_server import start_fl_server
 
 
 def parse_args() -> argparse.Namespace:
@@ -54,18 +56,29 @@ def main() -> None:
     )
 
     app = create_app(app_config)
+    model_service = app.config["MODEL_SERVICE"]
+    federation_service = app.config["FEDERATION_SERVICE"]
 
     print(f"\n{'=' * 60}")
     print(f"  Servidor FL — Autenticación Continua")
     print(f"  Configuración de sensores: {args.sensor_config}")
-    print(f"  Escuchando en: http://{args.host}:{args.port}")
+    print(f"  Flask (API REST) en: http://{args.host}:{args.port}")
+    print(f"  Flower (gRPC FL) en: 0.0.0.0:{app_config.fl.grpc_port}")
     print(f"{'=' * 60}")
-    print(f"  Endpoints:")
-    print(f"    GET /api/model/parameters  → Descargar pesos (NPZ)")
+    print(f"  Endpoints REST:")
     print(f"    GET /api/model/info        → Metadatos del modelo")
     print(f"{'=' * 60}\n")
 
-    app.run(host=app_config.host, port=app_config.port, debug=app_config.debug)
+    # Iniciar servidor Flower en un hilo separado
+    fl_thread = threading.Thread(
+        target=start_fl_server,
+        args=(model_service, federation_service, app_config.fl),
+        daemon=True,
+    )
+    fl_thread.start()
+
+    # Iniciar servidor Flask en el hilo principal
+    app.run(host=app_config.host, port=app_config.port, debug=app_config.debug, use_reloader=False)
 
 
 if __name__ == "__main__":

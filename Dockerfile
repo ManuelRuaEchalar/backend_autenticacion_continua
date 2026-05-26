@@ -4,6 +4,10 @@ FROM python:3.12-slim
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
+# Deshabilitar CUDA y suprimir logs de C++ de TensorFlow ya que el servidor FL solo usa CPU
+ENV CUDA_VISIBLE_DEVICES="-1"
+ENV TF_CPP_MIN_LOG_LEVEL="2"
+
 WORKDIR /app
 
 # Instalar dependencias del sistema necesarias para compilar paquetes si es necesario
