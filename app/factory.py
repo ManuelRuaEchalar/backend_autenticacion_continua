@@ -40,6 +40,11 @@ def create_app(config: AppConfig | None = None) -> Flask:
     app.config["MODEL_SERVICE"] = model_service
     app.config["FEDERATION_SERVICE"] = federation_service
 
+    # ── Rutas base ────────────────────────────────────────────────
+    @app.route("/health", methods=["GET"])
+    def health_check():
+        return {"status": "ok", "message": "Federated Learning Server is running"}, 200
+
     # ── Registrar blueprints ──────────────────────────────────────
     app.register_blueprint(model_bp)
 
