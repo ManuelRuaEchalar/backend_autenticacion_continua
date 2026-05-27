@@ -38,6 +38,24 @@ class FedAvgCustom(fl.server.strategy.FedAvg):
         self._model_service = model_service
         self._federation_service = federation_service
 
+    def configure_fit(
+        self, server_round: int, parameters: Parameters, client_manager: fl.server.client_manager.ClientManager
+    ) -> List[Tuple[ClientProxy, FitIns]]:
+        from datetime import datetime
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"[{datetime.now().strftime('%H:%M:%S')}] Iniciando Ronda {server_round} - Esperando clientes...")
+        
+        # Llama al método original para seleccionar clientes
+        client_instructions = super().configure_fit(server_round, parameters, client_manager)
+        
+        if client_instructions:
+            logger.info(f"[{datetime.now().strftime('%H:%M:%S')}] ¡EXITO! Se han conectado y seleccionado {len(client_instructions)} clientes. Enviando pesos globales...")
+        else:
+            logger.warning(f"[{datetime.now().strftime('%H:%M:%S')}] No se seleccionó ningún cliente.")
+            
+        return client_instructions
+
     def aggregate_fit(
         self,
         server_round: int,
@@ -47,6 +65,16 @@ class FedAvgCustom(fl.server.strategy.FedAvg):
         """
         Agrega los pesos de los clientes y los guarda en el modelo global.
         """
+        from datetime import datetime
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        logger.info(f"[{datetime.now().strftime('%H:%M:%S')}] Ronda {server_round} finalizada por los clientes.")
+        logger.info(f"[{datetime.now().strftime('%H:%M:%S')}] Resultados recibidos: {len(results)}. Fallos reportados: {len(failures)}.")
+
+        if failures:
+            logger.error(f"[{datetime.now().strftime('%H:%M:%S')}] ATENCIÓN: Hubo {len(failures)} clientes que fallaron o se desconectaron de golpe durante el entrenamiento local.")
+
         # Llamar a FedAvg estándar para hacer la agregación
         aggregated_parameters, aggregated_metrics = super().aggregate_fit(
             server_round, results, failures
@@ -69,6 +97,7 @@ class FedAvgCustom(fl.server.strategy.FedAvg):
                 total_samples=total_samples,
                 aggregated_metrics=aggregated_metrics,
             )
+            logger.info(f"[{datetime.now().strftime('%H:%M:%S')}] Modelo global actualizado con éxito.")
 
         return aggregated_parameters, aggregated_metrics
 
