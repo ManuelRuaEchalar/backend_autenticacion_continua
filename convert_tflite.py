@@ -32,9 +32,16 @@ class TFLiteODTModel(tf.Module):
             w.assign(kwargs[f"var_{i:04d}"])
         return {}
 
-    @tf.function(input_signature=[])
-    def save(self):
+    @tf.function(input_signature=[tf.TensorSpec([1], tf.float32)])
+    def parameters(self, x):
         return {f"var_{i:04d}": w for i, w in enumerate(self.model.weights)}
+
+    @tf.function(input_signature=[tf.TensorSpec([1], tf.float32)])
+    def initialize(self, x):
+        # Necesario para alojar memoria de ResourceVariables en TFLite
+        for w in self.model.weights:
+            w.assign(tf.zeros(w.shape, w.dtype))
+        return {}
 
 
 def convert_model():
@@ -67,8 +74,9 @@ def convert_model():
     signatures = {
         'train': module.train.get_concrete_function(),
         'infer': module.infer.get_concrete_function(),
-        'save': module.save.get_concrete_function(),
+        'parameters': module.parameters.get_concrete_function(),
         'restore': module.restore.get_concrete_function(**tensor_specs),
+        'initialize': module.initialize.get_concrete_function(),
     }
 
     saved_model_dir = "saved_model_temp"
