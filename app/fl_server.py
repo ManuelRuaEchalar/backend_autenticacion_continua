@@ -50,9 +50,24 @@ def start_fl_server(
     logger.info(f"Iniciando servidor Flower gRPC en puerto {fl_config.grpc_port}...")
     strategy = build_strategy(model_service, federation_service, fl_config)
 
-    fl.server.start_server(
-        server_address=f"0.0.0.0:{fl_config.grpc_port}",
-        config=fl.server.ServerConfig(num_rounds=fl_config.num_rounds),
-        strategy=strategy,
-    )
+    # WORKAROUND: Prevenir "ValueError: signal only works in main thread"
+    # parcheando el módulo signal porque Flower intenta registrar handlers 
+    # de salida elegante estando dentro de un thread secundario.
+    import signal
+    import threading
+    
+    _original_signal = signal.signal
+    if threading.current_thread() != threading.main_thread():
+        signal.signal = lambda *args, **kwargs: None
+
+    try:
+        fl.server.start_server(
+            server_address=f"0.0.0.0:{fl_config.grpc_port}",
+            config=fl.server.ServerConfig(num_rounds=fl_config.num_rounds),
+            strategy=strategy,
+        )
+    finally:
+        # Restaurar si es necesario
+        signal.signal = _original_signal
+
     logger.info("Servidor Flower detenido.")
