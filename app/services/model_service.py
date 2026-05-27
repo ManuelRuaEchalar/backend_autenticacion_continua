@@ -40,12 +40,19 @@ class ModelService:
 
     def _initialize_model(self) -> Model:
         """
-        Construye el modelo con pesos aleatorios (inicialización de Keras).
-
-        En aprendizaje federado, el servidor inicia con pesos aleatorios
-        y los clientes los descargan como punto de partida antes de la
-        primera ronda de entrenamiento local.
+        Construye el modelo intentando cargar primero un archivo preentrenado (.keras).
+        Si no se encuentra, construye uno desde cero con pesos aleatorios.
         """
+        import os
+        from tensorflow.keras.models import load_model
+
+        model_path = os.path.join(os.path.dirname(__file__), "..", "models", "startModel.keras")
+        
+        if os.path.exists(model_path):
+            print(f"Cargando modelo inicial desde: {model_path}")
+            return load_model(model_path)
+            
+        print("Archivo startModel.keras no encontrado, inicializando con pesos aleatorios...")
         builder = AuthModelBuilder(self._config)
         model = builder.build()
         return model

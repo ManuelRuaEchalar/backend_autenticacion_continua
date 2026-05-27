@@ -24,8 +24,9 @@ RUN pip install --no-cache-dir -r requirements.txt gunicorn
 # Copiar el resto del código
 COPY . .
 
-# Exponer puerto 5000
+# Exponer puerto 5000 (Flask REST) y 8080 (Flower gRPC)
 EXPOSE 5000
+EXPOSE 8080
 
 # Ejecutar con Gunicorn para producción
 CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "2", "--timeout", "120", "app.factory:create_app()"]
