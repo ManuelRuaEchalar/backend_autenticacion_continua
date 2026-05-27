@@ -1,0 +1,42 @@
+====================================================================
+ESQUEMA DE ARQUITECTURA Y FUNCIONAMIENTO - BACKEND FL CENTRAL
+====================================================================
+
+1. VISION GENERAL
+Este backend actúa como el "Servidor Central" en una arquitectura de Aprendizaje Federado (Federated Learning) para un sistema de autenticación continua móvil. Su función no es entrenar modelos con datos, sino orquestar a los teléfonos móviles para que ellos entrenen, recopilar sus mejoras y actualizar el modelo global.
+
+2. ARQUITECTURA DE SOFTWARE (Híbrida)
+El backend corre dos servidores simultáneamente dentro del mismo contenedor Docker:
+
+  A) API REST (Flask - Puerto 5000):
+     - Manejado por Gunicorn.
+     - Expone endpoints HTTP tradicionales (ej. `/api/model/info`).
+     - Sirve para que la app móvil consulte el estado del servidor, qué versión del modelo existe, o para los chequeos de salud (Health Checks) de AWS.
+
+  B) Servidor gRPC (Flower - Puerto 8080):
+     - Corre en un hilo en segundo plano (Background Thread).
+     - Establece conexiones bidireccionales permanentes con los celulares.
+     - Es el motor del Aprendizaje Federado. Coordina las rondas, envía los pesos a los celulares y recibe las actualizaciones.
+
+3. FLUJO DEL APRENDIZAJE FEDERADO (Flower)
+  - Inicialización: El servidor carga un modelo base preentrenado desde `app/models/startModel.keras`.
+  - Ronda N:
+      1. Selección: El servidor espera a que se conecte el mínimo requerido de clientes (celulares).
+      2. Distribución (configure_fit): Flower envía los parámetros matemáticos globales del modelo al celular.
+      3. Entrenamiento Local: El celular entrena el modelo usando los datos de sus propios sensores (giroscopio/acelerómetro) sin enviarlos a la nube.
+      4. Agregación (aggregate_fit): El celular devuelve solo los pesos actualizados al servidor. La estrategia `FedAvgCustom` promedio estos pesos matemáticamente.
+      5. Actualización: El modelo global en memoria se actualiza con el nuevo conocimiento.
+
+4. INFRAESTRUCTURA (AWS & Docker)
+  - Docker: Toda la aplicación está empaquetada en una imagen `python:3.12-slim`. Se ejecuta usando 1 solo `worker` de Gunicorn para evitar que la memoria del modelo global se divida en procesos paralelos.
+  - Red: 
+      - El tráfico REST (HTTP) entra por el puerto 5000.
+      - El tráfico de entrenamiento gRPC (HTTP/2 bidireccional) entra directo al puerto 8080 de la instancia EC2.
+      - Se utiliza una instancia EC2 (ej. t3.medium o c7) configurada en un Security Group que permite el tráfico de entrada a ambos puertos.
+
+5. ESTRUCTURA DE CARPETAS PRINCIPAL
+  - `run.py` / `Dockerfile`: Puntos de entrada para desarrollo local y producción.
+  - `app/factory.py`: Donde nacen y se fusionan Flask y el hilo de Flower.
+  - `app/fl_server.py`: Configuración base de arranque de Flower.
+  - `app/strategy.py`: La matemática y lógica de cuándo enviar y cómo promediar pesos.
+  - `app/models/`: Contiene la arquitectura del modelo de Inteligencia Artificial (DeepConvLSTM) y los pesos iniciales `.keras`.

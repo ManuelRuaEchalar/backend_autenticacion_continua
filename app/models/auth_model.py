@@ -112,8 +112,8 @@ class AuthModelBuilder:
         x = layers.LSTM(
             cfg.lstm_units[0],
             return_sequences=True,
-            dropout=cfg.dropout_rate,
-            recurrent_dropout=0.1,
+            dropout=0.0,            # MODIFICADO
+            recurrent_dropout=0.0,  # MODIFICADO
             name="imu_lstm1",
         )(x)
 
@@ -121,8 +121,8 @@ class AuthModelBuilder:
         x = layers.LSTM(
             cfg.lstm_units[1],
             return_sequences=False,
-            dropout=cfg.dropout_rate,
-            recurrent_dropout=0.1,
+            dropout=0.0,            # MODIFICADO
+            recurrent_dropout=0.0,  # MODIFICADO
             name="imu_lstm2",
         )(x)
 
