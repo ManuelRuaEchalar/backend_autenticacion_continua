@@ -1,0 +1,87 @@
+====================================================================
+GUÍA DE INTEGRACIÓN PARA EL DESARROLLO MÓVIL (BACKEND & FLOWER)
+====================================================================
+
+Este documento explica cómo funciona el backend del sistema de 
+autenticación continua y cómo la aplicación móvil debe conectarse 
+y comunicarse con él para participar en el Aprendizaje Federado.
+
+--------------------------------------------------------------------
+1. ARQUITECTURA GENERAL DEL BACKEND
+--------------------------------------------------------------------
+El backend expone simultáneamente dos servicios independientes:
+
+A) API REST (Flask):
+   - Por defecto corre en: http://<HOST>:5000
+   - Propósito: Proveer información y metadatos sobre la configuración 
+     actual del modelo global y los sensores requeridos.
+
+B) Servidor gRPC de Aprendizaje Federado (Flower):
+   - Por defecto corre en: <HOST>:8080
+   - Propósito: Coordinar las rondas de entrenamiento y evaluación. 
+     Se encarga de enviar los pesos iniciales a los clientes, recibir 
+     sus actualizaciones y realizar la agregación (FedAvg).
+
+--------------------------------------------------------------------
+2. FLUJO DE CONEXIÓN PARA LA APP MÓVIL
+--------------------------------------------------------------------
+Para integrarse correctamente, la aplicación móvil debe seguir este flujo:
+
+PASO 1: Verificar compatibilidad (REST API)
+-------------------------------------------
+Antes de iniciar cualquier proceso de entrenamiento, la app debe consultar 
+la configuración activa del modelo en el servidor.
+
+- Endpoint: GET http://<HOST>:5000/api/model/info
+- Respuesta esperada (JSON): Metadatos del modelo (configuración de sensores, 
+  tamaño de ventana "window_size", etc.).
+- Acción móvil: Validar que la app está recolectando los datos de los 
+  sensores correctos (ej. "gyro", "gyro_acc", o "gyro_acc_touch") y 
+  segmentándolos al tamaño de ventana requerido (ej. 128 muestras).
+
+PASO 2: Conexión a Flower (gRPC)
+--------------------------------
+Una vez verificada la compatibilidad, la app móvil (usando el SDK de 
+Flower para el lenguaje nativo) debe conectarse al servidor gRPC.
+
+- Dirección del servidor Flower: <HOST>:8080
+- Acción móvil: Iniciar el cliente Flower y mantenerse a la espera de las 
+  instrucciones del servidor.
+
+--------------------------------------------------------------------
+3. OPERACIONES DURANTE EL APRENDIZAJE FEDERADO (FLOWER CLIENT)
+--------------------------------------------------------------------
+El servidor Flower utiliza una estrategia personalizada (FedAvgCustom). 
+El cliente móvil deberá implementar los siguientes métodos principales 
+de su Flower Client (ej. `get_parameters`, `fit`, `evaluate`):
+
+A) Entrenamiento (fit):
+   - El servidor enviará los pesos globales actuales.
+   - El cliente móvil debe actualizar su modelo local con estos pesos,
+     entrenar con los datos locales recolectados de los sensores del usuario,
+     y devolver los pesos actualizados junto con el número de ejemplos usados.
+
+B) Evaluación (evaluate):
+   - El servidor pedirá al cliente evaluar un modelo.
+   - IMPORTANTE: En el diccionario de métricas devuelto al servidor en la
+     evaluación, el cliente móvil DEBE incluir una métrica llamada "eer" 
+     (Equal Error Rate) con un valor numérico (float). El servidor utiliza 
+     esta métrica para calcular un EER ponderado globalmente.
+     Ejemplo de retorno: `loss, num_examples, {"eer": valor_eer}`
+
+--------------------------------------------------------------------
+4. CONFIGURACIÓN Y ARQUITECTURA DEL MODELO (REFERENCIA)
+--------------------------------------------------------------------
+El backend está configurado por defecto para manejar un modelo tipo 
+DeepConvLSTM con la siguiente estructura base:
+- Sensor config: gyro_acc (Giroscopio y Acelerómetro)
+- Tamaño de ventana (window size): 128 muestras
+- Filtros Conv: (64, 64, 128, 128)
+- Unidades LSTM: (128, 64)
+- Unidades Dense (Cabeza): 32
+- Tasa de aprendizaje (Learning Rate): 1e-3
+
+Nota: El cliente móvil debe inicializar su red neuronal local replicando 
+esta arquitectura exactamente para que los pesos distribuidos por Flower 
+coincidan. Use el endpoint `/api/model/info` dinámicamente si los 
+parámetros pueden variar.
