@@ -56,9 +56,9 @@ class FLConfig:
     num_rounds: int = 50
     fraction_fit: float = 0.3
     fraction_evaluate: float = 0.2
-    min_fit_clients: int = 2
-    min_evaluate_clients: int = 2
-    min_available_clients: int = 2
+    min_fit_clients: int = 1
+    min_evaluate_clients: int = 1
+    min_available_clients: int = 1
 
 
 @dataclass(frozen=True)
