@@ -2,6 +2,7 @@ import logging
 import flwr as fl
 from flwr.common import ndarrays_to_parameters
 
+
 from app.config import FLConfig
 from app.services.model_service import ModelService
 from app.services.federation_service import FederationService
