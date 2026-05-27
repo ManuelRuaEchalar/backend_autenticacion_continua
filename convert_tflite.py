@@ -38,7 +38,8 @@ class TFLiteODTModel(tf.Module):
 
     @tf.function(input_signature=[])
     def initialize(self):
-        return {f"var_{i:04d}": w for i, w in enumerate(self.model.weights)}
+        _ = self.model(tf.zeros([1, 128, 6]), training=False)
+        return {"status": tf.constant([[1]])}
 
 
 def convert_model():
