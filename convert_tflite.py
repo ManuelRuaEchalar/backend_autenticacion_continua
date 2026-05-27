@@ -32,16 +32,13 @@ class TFLiteODTModel(tf.Module):
             w.assign(kwargs[f"var_{i:04d}"])
         return {}
 
-    @tf.function(input_signature=[tf.TensorSpec([1], tf.float32)])
-    def parameters(self, x):
+    @tf.function(input_signature=[])
+    def save(self):
         return {f"var_{i:04d}": w for i, w in enumerate(self.model.weights)}
 
-    @tf.function(input_signature=[tf.TensorSpec([1], tf.float32)])
-    def initialize(self, x):
-        # Necesario para alojar memoria de ResourceVariables en TFLite
-        for w in self.model.weights:
-            w.assign(tf.zeros(w.shape, w.dtype))
-        return {}
+    @tf.function(input_signature=[])
+    def initialize(self):
+        return {f"var_{i:04d}": w for i, w in enumerate(self.model.weights)}
 
 
 def convert_model():
@@ -67,6 +64,13 @@ def convert_model():
     
     module = TFLiteODTModel(model)
     
+    # Warm-up
+    print("Realizando warm-up...")
+    dummy_x = tf.zeros([1, 128, 6], dtype=tf.float32)
+    dummy_y = tf.zeros([1, 1], dtype=tf.float32)
+    module.train(dummy_x, dummy_y)
+    module.infer(dummy_x)
+    
     tensor_specs = {}
     for i, w in enumerate(model.weights):
         tensor_specs[f"var_{i:04d}"] = tf.TensorSpec(w.shape, w.dtype)
@@ -74,7 +78,7 @@ def convert_model():
     signatures = {
         'train': module.train.get_concrete_function(),
         'infer': module.infer.get_concrete_function(),
-        'parameters': module.parameters.get_concrete_function(),
+        'save': module.save.get_concrete_function(),
         'restore': module.restore.get_concrete_function(**tensor_specs),
         'initialize': module.initialize.get_concrete_function(),
     }
