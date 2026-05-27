@@ -51,13 +51,13 @@
 - 🔴 **Pendiente:** Planificado para futuras iteraciones.
 
 ### Arquitectura Actual (Fase Inicial)
-![Arquitectura Actual](../images/arquitecturaActual.png)
+![Arquitectura Actual](images/arquitecturaActual.png)
 
 ### Arquitectura Pendiente (Transición)
-![Arquitectura Pendiente](../images/arquitecturaPendiente.png)
+![Arquitectura Pendiente](images/arquitecturaPendiente.png)
 
 ### Arquitectura Final (Producción)
-![Arquitectura Final](../images/arquitecturaFinal.png)
+![Arquitectura Final](images/arquitecturaFinal.png)
 
 ---
 
@@ -78,19 +78,19 @@
 ### PARTE 1: Recursos en Consola AWS
 
 **1. Creación de Instancia EC2**
-![Creación de EC2](../images/CreateEC2_Instance.png)
+![Creación de EC2](images/CreateEC2_Instance.png)
 
 **2. Instancia EC2 en Ejecución**
-![EC2 Running](../images/EC2_Running.png)
+![EC2 Running](images/EC2_Running.png)
 
 **3. Application Load Balancer Activo**
-![ALB Activo](../images/ALB_Active.png)
+![ALB Activo](images/ALB_Active.png)
 
 **4. Target Group en Estado Healthy**
-![Target Group](../images/TargetGroup_Healthy.png)
+![Target Group](images/TargetGroup_Healthy.png)
 
 **5. Security Groups Configurados**
-![Security Groups](../images/SecurityGroups_Config.png)
+![Security Groups](images/SecurityGroups_Config.png)
 
 ### PARTE 2: Comandos Ejecutados en la Instancia EC2
 
@@ -98,42 +98,42 @@
 ```bash
 docker ps
 ```
-![Docker PS](../images/Docker_PS.png)
+![Docker PS](images/Docker_PS.png)
 
 **2. Logs del contenedor**
 ```bash
 docker logs backend-auth --tail 50
 ```
-![Docker Logs](../images/Docker_Logs.png)
+![Docker Logs](images/Docker_Logs.png)
 
 **3. Construir la imagen Docker**
 ```bash
 docker build -t backend-tesis .
 ```
-![Docker Build](../images/Docker_Build.png)
+![Docker Build](images/Docker_Build.png)
 
 **4. Ejecutar el contenedor**
 ```bash
 docker run -d -p 5000:5000 -p 8080:8080 --name backend-auth --restart unless-stopped backend-tesis
 ```
-![Docker Run](../images/Docker_Run.png)
+![Docker Run](images/Docker_Run.png)
 
 **5. Probar API localmente**
 ```bash
 curl -I http://localhost:5000/api/model/info
 ```
-![Curl Localhost](../images/Curl_Localhost.png)
+![Curl Localhost](images/Curl_Localhost.png)
 
 **6. Probar API a través del Load Balancer**
 ```bash
 curl http://alb-backend-tesis-656342325.us-east-2.elb.amazonaws.com/api/model/info
 ```
-![Curl ALB](../images/Curl_ALB.png)
+![Curl ALB](images/Curl_ALB.png)
 
 **7. Prueba en Navegador**
 Acceso a través del Load Balancer en navegador. URL utilizada: 
 `http://alb-backend-tesis-656342325.us-east-2.elb.amazonaws.com/api/model/info`
-![Browser ALB Response](../images/Browser_ALB_Response.png)
+![Browser ALB Response](images/Browser_ALB_Response.png)
 
 ---
 
