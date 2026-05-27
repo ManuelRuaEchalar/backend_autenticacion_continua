@@ -114,6 +114,7 @@ class AuthModelBuilder:
             return_sequences=True,
             dropout=0.0,            # MODIFICADO
             recurrent_dropout=0.0,  # MODIFICADO
+            unroll=True,            # Añadido para TFLite ODT nativo
             name="imu_lstm1",
         )(x)
 
@@ -123,6 +124,7 @@ class AuthModelBuilder:
             return_sequences=False,
             dropout=0.0,            # MODIFICADO
             recurrent_dropout=0.0,  # MODIFICADO
+            unroll=True,            # Añadido para TFLite ODT nativo
             name="imu_lstm2",
         )(x)
 
