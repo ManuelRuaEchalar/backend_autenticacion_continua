@@ -75,6 +75,13 @@ class FedAvgCustom(fl.server.strategy.FedAvg):
         if failures:
             logger.error(f"[{datetime.now().strftime('%H:%M:%S')}] ATENCIÓN: Hubo {len(failures)} clientes que fallaron o se desconectaron de golpe durante el entrenamiento local.")
 
+        if results:
+            ref_shapes = [arr.shape for arr in parameters_to_ndarrays(results[0][1].parameters)]
+            for _, fit_res in results[1:]:
+                shapes = [arr.shape for arr in parameters_to_ndarrays(fit_res.parameters)]
+                if shapes != ref_shapes:
+                    raise ValueError(f"Shape mismatch: esperado {ref_shapes}, recibido {shapes}")
+
         # Llamar a FedAvg estándar para hacer la agregación
         aggregated_parameters, aggregated_metrics = super().aggregate_fit(
             server_round, results, failures

@@ -10,6 +10,9 @@ Principios aplicados:
 """
 
 from flask import Flask
+import threading
+
+_fl_lock = threading.Lock()
 
 from app.config import AppConfig
 from app.services.model_service import ModelService
@@ -50,18 +53,18 @@ def create_app(config: AppConfig | None = None) -> Flask:
 
     # ── Iniciar Servidor FL (Flower) ──────────────────────────────
     import os
-    import threading
     from app.fl_server import start_fl_server
 
     # Usamos una variable de entorno para evitar que se lance múltiples veces
     # si el servidor (ej. Flask dev server) recarga la aplicación.
-    if os.environ.get("FLOWER_STARTED") != "1":
-        os.environ["FLOWER_STARTED"] = "1"
-        fl_thread = threading.Thread(
-            target=start_fl_server,
-            args=(model_service, federation_service, config.fl),
-            daemon=True,
-        )
-        fl_thread.start()
+    with _fl_lock:
+        if os.environ.get("FLOWER_STARTED") != "1":
+            os.environ["FLOWER_STARTED"] = "1"
+            fl_thread = threading.Thread(
+                target=start_fl_server,
+                args=(model_service, federation_service, config.fl),
+                daemon=True,
+            )
+            fl_thread.start()
 
     return app
