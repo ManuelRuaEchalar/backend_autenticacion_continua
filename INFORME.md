@@ -6,6 +6,10 @@
 - Juan Manuel Rua Echalar 
 *(Carrera de Ing. Ciencias de la Computación)*
 
+repositorio del proyecto:
+https://github.com/ManuelRuaEchalar/backend_autenticacion_continua
+https://github.com/ManuelRuaEchalar/app_autenticacion_continua
+
 ---
 
 ## 1. Tabla de Infraestructura y Servicios (Actualizada)

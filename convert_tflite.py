@@ -36,8 +36,8 @@ class TFLiteODTModel(tf.Module):
     def save(self):
         return {f"var_{i:04d}": w for i, w in enumerate(self.model.weights)}
 
-    @tf.function(input_signature=[])
-    def initialize(self):
+    @tf.function(input_signature=[tf.TensorSpec([1], tf.float32)])
+    def initialize(self, dummy):
         _ = self.model(tf.zeros([1, 128, 6]), training=False)
         return {"status": tf.constant([[1]])}
 
