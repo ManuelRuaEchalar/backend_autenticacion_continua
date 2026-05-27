@@ -28,5 +28,5 @@ COPY . .
 EXPOSE 5000
 EXPOSE 8080
 
-# Ejecutar con Gunicorn para producción
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "2", "--timeout", "120", "app.factory:create_app()"]
+# Ejecutar con Gunicorn para producción (1 worker por estado global de FL)
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "1", "--timeout", "120", "app.factory:create_app()"]
