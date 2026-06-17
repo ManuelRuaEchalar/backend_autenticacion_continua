@@ -19,6 +19,7 @@ from tensorflow.keras import Model
 
 from app.config import ModelConfig
 from app.models.auth_model import AuthModelBuilder
+from app.services.s3_service import S3Service
 
 
 class ModelService:
@@ -46,13 +47,19 @@ class ModelService:
         import os
         from tensorflow.keras.models import load_model
 
-        model_path = os.path.join(os.path.dirname(__file__), "..", "models", "startModel.keras")
+        models_dir = os.path.join(os.path.dirname(__file__), "..", "models")
+        os.makedirs(models_dir, exist_ok=True)
+        model_path = os.path.join(models_dir, "startModel.keras")
+        
+        s3_service = S3Service()
+        # Intentar descargar de S3 si no existe localmente o para asegurar la última versión
+        s3_service.download_start_model(model_path, "startModel.keras")
         
         if os.path.exists(model_path):
             print(f"Cargando modelo inicial desde: {model_path}")
             return load_model(model_path)
             
-        print("Archivo startModel.keras no encontrado, inicializando con pesos aleatorios...")
+        print("Archivo startModel.keras no encontrado ni en S3 ni local, inicializando con pesos aleatorios...")
         builder = AuthModelBuilder(self._config)
         model = builder.build()
         return model
@@ -80,6 +87,26 @@ class ModelService:
             weights: Lista de arrays NumPy con los nuevos parámetros.
         """
         self._model.set_weights(weights)
+
+    def save_checkpoint(self, round_number: int) -> None:
+        """
+        Guarda el modelo global en formato .keras y lo sube a S3.
+        """
+        import os
+        
+        models_dir = os.path.join(os.path.dirname(__file__), "..", "models")
+        os.makedirs(models_dir, exist_ok=True)
+        checkpoint_filename = f"model_round_{round_number}.keras"
+        local_path = os.path.join(models_dir, checkpoint_filename)
+        
+        print(f"Guardando checkpoint local en: {local_path}")
+        self._model.save(local_path)
+        
+        s3_service = S3Service()
+        # Subir con el nombre de la ronda específica
+        s3_service.upload_checkpoint(local_path, checkpoint_filename)
+        # Subir como latestModel.keras para tener una referencia fija al último
+        s3_service.upload_checkpoint(local_path, "latestModel.keras")
 
     def get_model_info(self) -> Dict[str, Any]:
         """

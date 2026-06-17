@@ -77,10 +77,16 @@ class FedAvgCustom(fl.server.strategy.FedAvg):
 
         if results:
             ref_shapes = [arr.shape for arr in parameters_to_ndarrays(results[0][1].parameters)]
-            for _, fit_res in results[1:]:
+            total_samples = 0
+            for _, fit_res in results:
                 shapes = [arr.shape for arr in parameters_to_ndarrays(fit_res.parameters)]
                 if shapes != ref_shapes:
                     raise ValueError(f"Shape mismatch: esperado {ref_shapes}, recibido {shapes}")
+                total_samples += fit_res.num_examples
+                
+            if total_samples == 0:
+                logger.warning(f"[{datetime.now().strftime('%H:%M:%S')}] Todos los clientes reportaron 0 ejemplos. Omitiendo agregación para evitar NaNs.")
+                return None, {}
 
         # Llamar a FedAvg estándar para hacer la agregación
         aggregated_parameters, aggregated_metrics = super().aggregate_fit(
@@ -104,6 +110,14 @@ class FedAvgCustom(fl.server.strategy.FedAvg):
                 total_samples=total_samples,
                 aggregated_metrics=aggregated_metrics,
             )
+            
+            # Guardar el checkpoint y subirlo a S3
+            try:
+                self._model_service.save_checkpoint(server_round)
+                logger.info(f"[{datetime.now().strftime('%H:%M:%S')}] Checkpoint de la ronda {server_round} guardado exitosamente en S3.")
+            except Exception as e:
+                logger.error(f"[{datetime.now().strftime('%H:%M:%S')}] Error guardando checkpoint en S3: {e}")
+                
             logger.info(f"[{datetime.now().strftime('%H:%M:%S')}] Modelo global actualizado con éxito.")
 
         return aggregated_parameters, aggregated_metrics

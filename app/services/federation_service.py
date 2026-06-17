@@ -1,5 +1,9 @@
 import datetime
 from typing import Dict, List, Any
+from app.database import SessionLocal, TrainingRound
+import logging
+
+logger = logging.getLogger(__name__)
 
 class FederationService:
     """
@@ -12,6 +16,15 @@ class FederationService:
     def __init__(self):
         self._history: List[Dict[str, Any]] = []
         self._evaluations: List[Dict[str, Any]] = []
+
+    def _save_to_db(self, db_record: TrainingRound):
+        if SessionLocal:
+            try:
+                with SessionLocal() as db:
+                    db.add(db_record)
+                    db.commit()
+            except Exception as e:
+                logger.error(f"Error al guardar registro en la base de datos: {e}")
 
     def record_round(self, round_number: int, n_clients: int, total_samples: int, aggregated_metrics: Dict[str, Any]) -> None:
         """
@@ -26,6 +39,16 @@ class FederationService:
             "type": "fit"
         }
         self._history.append(record)
+        
+        # Guardar en base de datos
+        db_record = TrainingRound(
+            round_number=round_number,
+            n_clients=n_clients,
+            total_samples=total_samples,
+            metrics=aggregated_metrics,
+            record_type="fit"
+        )
+        self._save_to_db(db_record)
 
     def record_evaluation(self, round_number: int, weighted_eer: float, n_clients: int) -> None:
         """
@@ -39,6 +62,15 @@ class FederationService:
             "type": "evaluate"
         }
         self._evaluations.append(record)
+        
+        # Guardar en base de datos
+        db_record = TrainingRound(
+            round_number=round_number,
+            n_clients=n_clients,
+            record_type="evaluate",
+            weighted_eer=weighted_eer
+        )
+        self._save_to_db(db_record)
 
     def get_status(self) -> Dict[str, Any]:
         """

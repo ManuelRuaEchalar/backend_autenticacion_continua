@@ -9,6 +9,8 @@ class TFLiteODTModel(tf.Module):
         self.model = keras_model
         # Rastrear explícitamente todas las variables (incluyendo seed_generators de Dropout)
         self.all_variables = keras_model.variables
+        # Guardar los pesos iniciales como constantes en el grafo
+        self._initial_weights = [tf.constant(w.numpy()) for w in self.all_variables]
 
     @tf.function(input_signature=[
         tf.TensorSpec([None, 128, 6], tf.float32),
@@ -38,7 +40,9 @@ class TFLiteODTModel(tf.Module):
 
     @tf.function(input_signature=[tf.TensorSpec([1], tf.float32)])
     def initialize(self, dummy):
-        _ = self.model(tf.zeros([1, 128, 6]), training=False)
+        # Asignar los valores iniciales a las variables de recursos
+        for w, init_w in zip(self.all_variables, self._initial_weights):
+            w.assign(init_w)
         return {"status": tf.constant([[1]])}
 
 

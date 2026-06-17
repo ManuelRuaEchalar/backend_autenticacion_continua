@@ -8,10 +8,17 @@ Uso:
 
 import argparse
 import threading
+from dotenv import load_dotenv
+
+load_dotenv() # Load environment variables from .env
 
 from app.config import AppConfig, ModelConfig, FLConfig
 from app.factory import create_app
 from app.fl_server import start_fl_server
+from app.database import init_db
+
+# Inicializar base de datos
+init_db()
 
 
 def parse_args() -> argparse.Namespace:
