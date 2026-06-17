@@ -50,17 +50,9 @@ https://github.com/ManuelRuaEchalar/app_autenticacion_continua
 ## 3. Diagramas de Arquitectura
 
 **Leyenda de Estado:**
-- 🟢 **Operativo:** Componentes desplegados y funcionales.
-- 🟡 **En configuración:** Desplegado pero en ajustes de red/seguridad o pruebas.
-- 🔴 **Pendiente:** Planificado para futuras iteraciones.
+- 🟢 **Operativo:** Todos los componentes se encuentran completamente desplegados, funcionales y en producción.
 
-### Arquitectura Actual (Fase Inicial)
-![Arquitectura Actual](images/arquitecturaActual.png)
-
-### Arquitectura Pendiente (Transición)
-![Arquitectura Pendiente](images/arquitecturaPendiente.png)
-
-### Arquitectura Final (Producción)
+### Arquitectura del Sistema
 ![Arquitectura Final](images/arquitecturaFinal.png)
 
 ---
@@ -72,6 +64,8 @@ https://github.com/ManuelRuaEchalar/app_autenticacion_continua
 | **19/05/2026** | Diseño de Arquitectura Clean + MVVM para móvil y selección de framework FL (Flower). | Manuel y Bruno | Toma de decisión sobre cómo unificar la API REST para consultar metadatos del modelo (`startModel.keras`) con el servidor gRPC de Flower en el mismo backend. |
 | **22/05/2026** | Implementación del Foreground Service de recolección de sensores en Android e integración local de SQLite (Room). | Manuel | Evitar que el sistema operativo Android mate el servicio de recolección en segundo plano (Doze mode) logrando captura constante a 50Hz. |
 | **26/05/2026** | Despliegue de infraestructura base en AWS (Instancia EC2 c7, ALB) y dockerización del backend. | Bruno | Configuración de los Security Groups y resolución del enrutamiento TLS a través del ALB hacia los puertos 5000 y 8080 en los contenedores Docker. |
+| **15/06/2026** | Creación y configuración de base de datos relacional RDS PostgreSQL en la nube, y configuración del Bucket S3. | Manuel y Bruno | Creación del esquema inicial para el registro de métricas y correcta configuración de políticas IAM para permitir acceso seguro. |
+| **16/06/2026** | Integración del modelo S3 y RDS al contenedor, inicialización automatizada y monitoreo en CloudWatch. | Manuel y Bruno | Inyección segura de credenciales con variables de entorno (`.env`) en Docker y automatización de subida/descarga del checkpoint al S3. |
 
 ---
 
@@ -138,6 +132,17 @@ curl http://alb-backend-tesis-656342325.us-east-2.elb.amazonaws.com/api/model/in
 Acceso a través del Load Balancer en navegador. URL utilizada: 
 `http://alb-backend-tesis-656342325.us-east-2.elb.amazonaws.com/api/model/info`
 ![Browser ALB Response](images/Browser_ALB_Response.png)
+
+### PARTE 3: Servicios Adicionales Integrados
+
+**1. Base de Datos Amazon RDS (PostgreSQL)**
+![RDS Configuración](images/rds.jpeg)
+
+**2. Almacenamiento en Amazon S3**
+![S3 Bucket](images/s3.jpeg)
+
+**3. Políticas de Acceso y Roles (IAM)**
+![IAM Security](images/iam.jpeg)
 
 ---
 
