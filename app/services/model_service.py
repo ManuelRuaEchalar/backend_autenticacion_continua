@@ -53,11 +53,16 @@ class ModelService:
         
         s3_service = S3Service()
         # Intentar descargar de S3 si no existe localmente o para asegurar la última versión
-        s3_service.download_start_model(model_path, "startModel.keras")
+        downloaded = s3_service.download_start_model(model_path, "startModel.keras")
         
         if os.path.exists(model_path):
             print(f"Cargando modelo inicial desde: {model_path}")
-            return load_model(model_path)
+            model = load_model(model_path)
+            # Si existe localmente pero no se pudo descargar del S3 (ej. el bucket estaba vacío), lo subimos
+            if not downloaded:
+                print("Subiendo startModel.keras local a S3 para inicializar el bucket...")
+                s3_service.upload_checkpoint(model_path, "startModel.keras")
+            return model
             
         print("Archivo startModel.keras no encontrado ni en S3 ni local, inicializando con pesos aleatorios...")
         builder = AuthModelBuilder(self._config)
