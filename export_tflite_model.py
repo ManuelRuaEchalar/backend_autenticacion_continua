@@ -330,7 +330,7 @@ def main() -> None:
     print("=" * 70)
     print("  FASE 1 — Exportación del artefacto TFLite FedPer")
     print("=" * 70)
-    print(f"TensorFlow {tf.__version__} / Keras {tf.keras.__version__}")
+    print(f"TensorFlow {tf.__version__} / Keras {tf_env.keras_version()}")
 
     print("\n[1/6] Construyendo modelo...")
     encoder_weights = (
