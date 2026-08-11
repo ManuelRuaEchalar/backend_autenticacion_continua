@@ -41,7 +41,17 @@ import tensorflow as tf
 
 
 class CheckFailed(Exception):
-    pass
+    """Defecto del artefacto: lo exportado no cumple el contrato."""
+
+
+class EnvironmentUnsupported(Exception):
+    """
+    Limitación del intérprete de Python, no del artefacto.
+
+    Se separa de `CheckFailed` a propósito: confundir "este entorno no puede
+    ejecutarlo" con "el modelo está mal" lleva a rehacer una exportación que
+    era correcta.
+    """
 
 
 class Report:
@@ -50,29 +60,66 @@ class Report:
     def __init__(self) -> None:
         self.passed: List[str] = []
         self.failed: List[str] = []
+        self.blocked: List[str] = []
+        self.skipped: List[str] = []
 
-    def run(self, title: str, fn: Callable[[], str]) -> None:
+    def run(
+        self,
+        title: str,
+        fn: Callable[[], str],
+        depends_on: str | None = None,
+    ) -> None:
+        # Una comprobación cuyo requisito no se pudo evaluar no tiene veredicto.
+        # Ejecutarla igualmente produce diagnósticos falsos: si `train_step` no
+        # llegó a correr, "el encoder no cambió" acusa de congelado a un encoder
+        # que simplemente no se entrenó.
+        if depends_on is not None and depends_on not in self.passed:
+            self.skipped.append(title)
+            print(f"  [OMIT] {title}")
+            print(f"         sin veredicto: depende de '{depends_on}'")
+            return
+
         try:
             detail = fn()
-            self.passed.append(title)
-            print(f"  [OK]   {title}")
-            if detail:
-                print(f"         {detail}")
+        except EnvironmentUnsupported as exc:
+            self.blocked.append(title)
+            print(f"  [ENTORNO] {title}")
+            print(f"         {exc}")
         except Exception as exc:  # noqa: BLE001 - se reporta, no se propaga
             self.failed.append(title)
             print(f"  [FALLO] {title}")
             print(f"         {type(exc).__name__}: {exc}")
+        else:
+            self.passed.append(title)
+            print(f"  [OK]   {title}")
+            if detail:
+                print(f"         {detail}")
 
     def summary(self) -> int:
-        total = len(self.passed) + len(self.failed)
+        total = (len(self.passed) + len(self.failed)
+                 + len(self.blocked) + len(self.skipped))
         print("\n" + "=" * 70)
         print(f"  {len(self.passed)}/{total} comprobaciones superadas")
+
+        for label, names in (
+            ("Fallaron (defecto del artefacto)", self.failed),
+            ("Bloqueadas por el entorno de Python", self.blocked),
+            ("Sin evaluar", self.skipped),
+        ):
+            if names:
+                print(f"  {label}:")
+                for name in names:
+                    print(f"    - {name}")
+
         if self.failed:
-            print("  Fallaron:")
-            for name in self.failed:
-                print(f"    - {name}")
+            print("\n  El artefacto NO sirve: corrige la exportación.")
+        elif self.blocked or self.skipped:
+            print("\n  El artefacto no está descartado, pero tampoco verificado.")
+            print("  Valida lo que falta en el dispositivo con FedPerOnDeviceTest")
+            print("  (./gradlew connectedDebugAndroidTest) antes de seguir.")
+
         print("=" * 70)
-        return 1 if self.failed else 0
+        return 1 if (self.failed or self.blocked or self.skipped) else 0
 
 
 def make_separable_batch(n_gen: int, n_bg: int, window: int, feats: int, seed: int = 0):
@@ -195,14 +242,31 @@ def main() -> int:
     # -- 4. La pérdida baja ----------------------------------------------
     x_gen, x_bg = make_separable_batch(n_gen, n_bg, ws, nf)
 
+    def train_step_once():
+        """Un paso de entrenamiento, distinguiendo defecto de limitación."""
+        try:
+            return sig["train_step"](x_genuine=x_gen, x_background=x_bg)
+        except RuntimeError as exc:
+            message = str(exc)
+            if "Flex" not in message and "Select TensorFlow op" not in message:
+                raise
+            raise EnvironmentUnsupported(
+                f"el intérprete de TFLite de este Python (TF {tf.__version__}) "
+                "no trae el delegado Flex, así que no puede ejecutar train_step: "
+                "el backward de la LSTM usa ops TensorList que viven en "
+                "SELECT_TF_OPS. Esto NO dice nada sobre el artefacto — en Android "
+                "esas ops las aporta org.tensorflow:tensorflow-lite-select-tf-ops. "
+                "Para verificarlo aquí hace falta un TF cuyo intérprete de Python "
+                "aún enlace Flex (2.16.x); si no, valida en el dispositivo."
+            ) from exc
+
     def check_loss_decreases() -> str:
         sig["reset_optimizer"]()
         sig["set_lr"](lr=np.float32(manifest["training"]["learning_rate"]))
 
         losses = []
         for _ in range(args.train_steps):
-            out = sig["train_step"](x_genuine=x_gen, x_background=x_bg)
-            losses.append(float(out["loss"]))
+            losses.append(float(train_step_once()["loss"]))
 
         first = float(np.mean(losses[:3]))
         last = float(np.mean(losses[-3:]))
@@ -236,7 +300,11 @@ def main() -> int:
         return (f"delta máx. encoder = {delta:.3e}, "
                 f"delta máx. cabeza = {head_delta:.3e}")
 
-    report.run("El entrenamiento actualiza encoder Y cabeza", check_encoder_is_trainable)
+    report.run(
+        "El entrenamiento actualiza encoder Y cabeza",
+        check_encoder_is_trainable,
+        depends_on="train_step reduce la pérdida",
+    )
 
     # -- 6. Inferencia ----------------------------------------------------
     def check_infer() -> str:
