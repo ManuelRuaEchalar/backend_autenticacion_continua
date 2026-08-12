@@ -161,6 +161,27 @@ def main() -> int:
 
     sig = {name: interpreter.get_signature_runner(name) for name in available}
 
+    # El LSTM del encoder se convierte a UNIDIRECTIONAL_SEQUENCE_LSTM, que
+    # conserva estado oculto entre invocaciones. TFLiteModelManager.kt hace
+    # `resetVariableTensors()` antes de cada firma que atraviesa la red; aquí
+    # se replica para que la verificación mida lo mismo que ejecuta la app.
+    # Los pesos no se tocan: son variables de recurso, no tensores-variable.
+    for _n in ("train_step", "infer", "infer_batch"):
+        if _n in sig:
+            sig[_n] = (lambda runner: lambda **kw: (
+                interpreter.reset_all_variables(), runner(**kw)
+            )[1])(sig[_n])
+
+    # Las firmas sin entradas conceptuales llevan un escalar `dummy` que el
+    # modelo ignora, porque el wrapper Java de TFLite no invoca firmas con el
+    # mapa de entradas vacío (ver NOTA SOBRE `dummy` en tflite_wrapper.py).
+    # Se envuelven aquí para que los puntos de llamada de abajo lo ignoren
+    # también, y esta verificación siga leyéndose como la semántica real.
+    _dummy = np.float32(0.0)
+    for _name in ("initialize", "save_encoder", "save_head", "reset_optimizer"):
+        if _name in sig:
+            sig[_name] = (lambda runner: lambda: runner(dummy=_dummy))(sig[_name])
+
     ws = manifest["signal"]["window_size"]
     nf = manifest["signal"]["n_features"]
     n_gen = manifest["training"]["train_genuine_per_batch"]
@@ -324,19 +345,55 @@ def main() -> int:
                 raise CheckFailed(f"infer_batch.{key} -> {many[key].shape}, "
                                   f"se esperaba {expected}")
 
-        # Ambas firmas comparten variables: la misma ventana debe puntuar
-        # igual por las dos vías.
-        if not np.allclose(one["genuine_score"][0], many["genuine_score"][0], atol=1e-4):
+        # Ambas firmas comparten variables: CADA ventana debe puntuar igual por
+        # las dos vías, no sólo la primera.
+        #
+        # Esta comprobación miraba únicamente el índice 0 y por eso dejó pasar
+        # el defecto de `build_full_model`, que horneaba training=True en el
+        # encoder: BatchNorm normalizaba por lote, así que el índice 0 coincidía
+        # (primera llamada, mismas estadísticas) mientras los 36 restantes
+        # discrepaban hasta 0.12. Se compara el lote entero a propósito.
+        uno_a_uno = np.array([
+            sig["infer"](x=padded[i:i + 1], threshold=threshold)["genuine_score"][0]
+            for i in range(infer_batch)
+        ])
+        peor = int(np.argmax(np.abs(uno_a_uno - many["genuine_score"])))
+        dif = float(np.abs(uno_a_uno - many["genuine_score"])[peor])
+        if dif > 1e-4:
+            n_malos = int((np.abs(uno_a_uno - many["genuine_score"]) > 1e-4).sum())
             raise CheckFailed(
-                f"infer={one['genuine_score'][0]:.6f} frente a "
-                f"infer_batch={many['genuine_score'][0]:.6f}: las firmas no "
-                "comparten estado o BatchNorm no está en modo inferencia"
+                f"{n_malos}/{infer_batch} ventanas discrepan entre infer e "
+                f"infer_batch (peor: índice {peor}, "
+                f"{uno_a_uno[peor]:.6f} frente a "
+                f"{many['genuine_score'][peor]:.6f}, dif={dif:.6f}). "
+                "BatchNorm no está en modo inferencia: revisa que "
+                "build_full_model llame a encoder(inp) SIN fijar `training`."
             )
+
+        # La inferencia debe ser pura: repetirla no puede cambiar el resultado
+        # ni tocar los pesos. Detecta medias móviles actualizándose al inferir.
+        enc_antes = sig["save_encoder"]()["encoder_flat"].copy()
+        repeticiones = [
+            float(sig["infer"](x=padded[:1], threshold=threshold)["genuine_score"][0])
+            for _ in range(5)
+        ]
+        deriva = max(abs(s - repeticiones[0]) for s in repeticiones)
+        if deriva > 1e-6:
+            raise CheckFailed(
+                f"la misma ventana puntúa distinto en llamadas sucesivas "
+                f"({repeticiones[0]:.7f} -> {repeticiones[-1]:.7f}, "
+                f"deriva={deriva:.2e}): la inferencia está mutando estado"
+            )
+        if not np.array_equal(enc_antes, sig["save_encoder"]()["encoder_flat"]):
+            raise CheckFailed("inferir modificó los pesos del encoder")
+
         scores = many["genuine_score"]
         if np.any(scores < 0) or np.any(scores > 1):
             raise CheckFailed("genuine_score fuera de [0,1]")
         return (f"score genuino tras entrenar = {float(one['genuine_score'][0]):.4f}, "
-                f"error de reconstrucción = {float(one['reconstruction_error'][0]):.4f}")
+                f"error de reconstrucción = {float(one['reconstruction_error'][0]):.4f}; "
+                f"{infer_batch}/{infer_batch} ventanas coinciden con infer_batch "
+                f"e infer es pura")
 
     report.run("infer / infer_batch: formas y consistencia", check_infer)
 

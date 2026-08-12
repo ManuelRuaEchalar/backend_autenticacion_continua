@@ -15,7 +15,7 @@ import threading
 _fl_lock = threading.Lock()
 
 from app.config import AppConfig
-from app.services.model_service import ModelService
+from app.services.encoder_service import EncoderService
 from app.services.federation_service import FederationService
 from app.routes.model_routes import model_bp
 
@@ -37,10 +37,12 @@ def create_app(config: AppConfig | None = None) -> Flask:
     app = Flask(__name__)
 
     # ── Inicializar servicios ──────────────────────────────────────
-    model_service = ModelService(config.model)
+    # EncoderService sustituye a ModelService (Fase 3): sirve el vector plano
+    # del encoder FedPer en vez del DeepConvLSTM completo, y no carga TF.
+    encoder_service = EncoderService()
     federation_service = FederationService()
-    
-    app.config["MODEL_SERVICE"] = model_service
+
+    app.config["ENCODER_SERVICE"] = encoder_service
     app.config["FEDERATION_SERVICE"] = federation_service
 
     # ── Rutas base ────────────────────────────────────────────────
@@ -62,7 +64,7 @@ def create_app(config: AppConfig | None = None) -> Flask:
             os.environ["FLOWER_STARTED"] = "1"
             fl_thread = threading.Thread(
                 target=start_fl_server,
-                args=(model_service, federation_service, config.fl),
+                args=(encoder_service, federation_service, config.fl),
                 daemon=True,
             )
             fl_thread.start()

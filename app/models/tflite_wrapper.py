@@ -193,8 +193,27 @@ class TrainableAuthModel(tf.Module):
         enc_size = self.encoder_layout.total_size
         head_size = self.head_layout.total_size
 
-        @tf.function(input_signature=[])
-        def initialize():
+        # NOTA SOBRE `dummy` — no borrar.
+        #
+        # Cuatro firmas (initialize, reset_optimizer, save_encoder, save_head)
+        # no necesitan entradas conceptualmente, pero el wrapper Java de TFLite
+        # rechaza invocarlas:
+        #
+        #     Interpreter.runSignature(inputs, outputs, key)
+        #       if (inputs == null || inputs.isEmpty())
+        #         throw new IllegalArgumentException(
+        #             "Input error: Inputs should not be null or empty.");
+        #
+        # El intérprete de Python no tiene esa restricción, así que
+        # `verify_tflite_model.py` daba 8/8 mientras el dispositivo fallaba las
+        # 7 pruebas en @Before. Un escalar ignorado es la forma más barata de
+        # que la firma sea invocable desde Android. No afecta a los pesos ni a
+        # encoder_flat_size.
+        _dummy_spec = tf.TensorSpec([], tf.float32, name="dummy")
+
+        @tf.function(input_signature=[_dummy_spec])
+        def initialize(dummy):
+            del dummy  # ver NOTA SOBRE `dummy`
             return {"status": tf.constant(1, dtype=tf.int32)}
 
         @tf.function(input_signature=[
@@ -238,8 +257,9 @@ class TrainableAuthModel(tf.Module):
         def infer_batch(x, threshold):
             return _infer_body(x, threshold)
 
-        @tf.function(input_signature=[])
-        def save_encoder():
+        @tf.function(input_signature=[_dummy_spec])
+        def save_encoder(dummy):
+            del dummy  # ver NOTA SOBRE `dummy`
             return {"encoder_flat": self._flatten(self.encoder.weights)}
 
         @tf.function(input_signature=[
@@ -249,8 +269,9 @@ class TrainableAuthModel(tf.Module):
             self._assign_flat(self.encoder.weights, self.encoder_layout, encoder_flat)
             return {"status": tf.constant(1, dtype=tf.int32)}
 
-        @tf.function(input_signature=[])
-        def save_head():
+        @tf.function(input_signature=[_dummy_spec])
+        def save_head(dummy):
+            del dummy  # ver NOTA SOBRE `dummy`
             return {"head_flat": self._flatten(self.head.weights)}
 
         @tf.function(input_signature=[
@@ -268,8 +289,9 @@ class TrainableAuthModel(tf.Module):
             self.optimizer.learning_rate.assign(lr)
             return {"lr": self.optimizer.learning_rate}
 
-        @tf.function(input_signature=[])
-        def reset_optimizer():
+        @tf.function(input_signature=[_dummy_spec])
+        def reset_optimizer(dummy):
+            del dummy  # ver NOTA SOBRE `dummy`
             # En la simulación, Ray reconstruye `AuthClient` (y con él, el
             # optimizador) en cada ronda, así que Adam arranca sin momentos
             # acumulados. On-device el intérprete es persistente, de modo que
@@ -337,13 +359,17 @@ class TrainableAuthModel(tf.Module):
         if fns is None:
             raise RuntimeError("Llama a build_signatures() antes de warmup().")
 
-        fns["initialize"]()
+        # Escalar ignorado que exigen las cuatro firmas sin entradas reales;
+        # ver NOTA SOBRE `dummy` en build_signatures().
+        dummy = tf.constant(0.0, dtype=tf.float32)
+
+        fns["initialize"](dummy)
         fns["set_lr"](tf.constant(cfg.learning_rate, dtype=tf.float32))
         fns["train_step"](x_gen, x_bg)
-        fns["reset_optimizer"]()
+        fns["reset_optimizer"](dummy)
         fns["infer"](tf.zeros([1, ws, nf], dtype=tf.float32), thr)
         fns["infer_batch"](tf.zeros([cfg.infer_batch, ws, nf], dtype=tf.float32), thr)
-        enc = fns["save_encoder"]()["encoder_flat"]
+        enc = fns["save_encoder"](dummy)["encoder_flat"]
         fns["restore_encoder"](enc)
-        hd = fns["save_head"]()["head_flat"]
+        hd = fns["save_head"](dummy)["head_flat"]
         fns["restore_head"](hd)

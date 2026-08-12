@@ -121,10 +121,31 @@ def build_full_model(
     después devuelve los pesos del encoder.
     """
     inp = tf.keras.Input(shape=(window_size, n_features))
-    feat = encoder(inp, training=not freeze_encoder)
+    # `encoder(inp)` SIN `training=`: el flag se hereda de quien llame al
+    # modelo, que es lo que las firmas TFLite esperan (True en train_step,
+    # False en infer/infer_batch).
+    #
+    # Antes ponía `training=not freeze_encoder`, que con freeze_encoder=False
+    # HORNEABA training=True en el grafo. Keras no lo sobrescribe con el
+    # `training=False` de la llamada externa, así que BatchNormalization
+    # normalizaba con estadísticas DEL LOTE durante la inferencia y actualizaba
+    # sus medias móviles al evaluar. Consecuencias medidas:
+    #   · la puntuación de una ventana dependía de las demás de su lote;
+    #   · `infer` (lote de 1) e `infer_batch` (lote de 32) discrepaban hasta
+    #     0.12 en el score, y en TFLite la puntuación derivaba en llamadas
+    #     sucesivas sobre la MISMA entrada;
+    #   · on-device, con lotes de 1, normalizar por la estadística de una sola
+    #     muestra destruye la señal.
+    # `mejor.py:595` tiene el mismo defecto, y ni `AuthClient` (695) ni
+    # `build_user_model` (1172) pasaban freeze_encoder, de modo que la tabla
+    # final de EER se calculó con BatchNorm en modo entrenamiento.
+    feat = encoder(inp)
     recon_out, cls_out = head(feat)
     model = tf.keras.Model(inp, [recon_out, cls_out], name="FullAuthModel")
     if freeze_encoder:
+        # `trainable = False` es la forma correcta de congelar: además de
+        # excluir los pesos del gradiente, pone BatchNormalization en modo
+        # inferencia de manera permanente.
         encoder.trainable = False
     model.compile(
         optimizer=tf.keras.optimizers.Adam(lr, clipnorm=1.0),

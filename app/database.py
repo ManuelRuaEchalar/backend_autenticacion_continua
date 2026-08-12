@@ -31,8 +31,32 @@ if DATABASE_URL:
         logging.error(f"Error al inicializar el engine de base de datos: {e}")
 
 def init_db():
-    if engine:
+    """
+    Crea las tablas si hay base de datos configurada Y alcanzable.
+
+    `create_engine` es perezoso: no abre conexión, así que un DATABASE_URL
+    inalcanzable sólo se manifiesta aquí. Sin este try/except, una RDS caída
+    o fuera de la VPC tumba el proceso entero en `run.py`, porque init_db()
+    se invoca a nivel de módulo. El registro de métricas es accesorio: el
+    servidor federado debe arrancar igualmente.
+    """
+    global engine, SessionLocal
+
+    if not engine:
+        return
+
+    try:
         Base.metadata.create_all(bind=engine)
+    except Exception as e:
+        import logging
+        logging.warning(
+            f"Base de datos inalcanzable ({e.__class__.__name__}); el servidor "
+            f"arranca sin registro de métricas. Detalle: {e}"
+        )
+        # Desactivar el engine para que get_db() devuelva None y las escrituras
+        # se omitan limpiamente, en vez de reintentar y bloquear cada petición.
+        engine = None
+        SessionLocal = None
 
 def get_db():
     if not SessionLocal:

@@ -1,6 +1,10 @@
 import datetime
 from typing import Dict, List, Any
-from app.database import SessionLocal, TrainingRound
+# Se importa el MÓDULO, no `SessionLocal` por valor: init_db() anula el
+# sessionmaker cuando la base de datos resulta inalcanzable, y una copia local
+# se quedaría con el objeto vivo, pagando el timeout TCP en cada ronda.
+from app import database
+from app.database import TrainingRound
 import logging
 
 logger = logging.getLogger(__name__)
@@ -18,9 +22,9 @@ class FederationService:
         self._evaluations: List[Dict[str, Any]] = []
 
     def _save_to_db(self, db_record: TrainingRound):
-        if SessionLocal:
+        if database.SessionLocal:
             try:
-                with SessionLocal() as db:
+                with database.SessionLocal() as db:
                     db.add(db_record)
                     db.commit()
             except Exception as e:

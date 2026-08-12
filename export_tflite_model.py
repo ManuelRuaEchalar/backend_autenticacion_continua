@@ -275,8 +275,11 @@ def build_manifest(
             "background_calib_windows": n_bg_calib,
         },
 
+        # Las firmas sin entradas conceptuales declaran un escalar `dummy` que
+        # se ignora: el wrapper Java de TFLite rechaza `runSignature` con un
+        # mapa de entradas vacío. Ver NOTA SOBRE `dummy` en tflite_wrapper.py.
         "signatures": {
-            "initialize": {"inputs": [], "outputs": ["status"]},
+            "initialize": {"inputs": ["dummy"], "outputs": ["status"]},
             "train_step": {
                 "inputs": ["x_genuine", "x_background"],
                 "outputs": ["loss", "recon_loss", "cls_loss"],
@@ -289,12 +292,12 @@ def build_manifest(
                 "inputs": ["x", "threshold"],
                 "outputs": ["genuine_score", "reconstruction_error", "is_genuine"],
             },
-            "save_encoder": {"inputs": [], "outputs": ["encoder_flat"]},
+            "save_encoder": {"inputs": ["dummy"], "outputs": ["encoder_flat"]},
             "restore_encoder": {"inputs": ["encoder_flat"], "outputs": ["status"]},
-            "save_head": {"inputs": [], "outputs": ["head_flat"]},
+            "save_head": {"inputs": ["dummy"], "outputs": ["head_flat"]},
             "restore_head": {"inputs": ["head_flat"], "outputs": ["status"]},
             "set_lr": {"inputs": ["lr"], "outputs": ["lr"]},
-            "reset_optimizer": {"inputs": [], "outputs": ["status"]},
+            "reset_optimizer": {"inputs": ["dummy"], "outputs": ["status"]},
         },
     }
 
