@@ -8,8 +8,15 @@ htmlcov/
 .DS_Store
 *.log
 .env
-# Salidas de las corridas: checkpoints por ronda, pools y copias de BD.
-# Son artefactos REGENERABLES y pesan decenas de MB; en el historial de git
-# no se pueden quitar despues sin reescribirlo entero. Se conservan en disco
-# y se referencian por nombre desde resultados_*.md.
-artifacts/
+# Volcados por ronda de cada corrida: decenas de MB regenerables, y una vez en
+# el historial no se quitan sin reescribirlo entero. Se conservan en disco y se
+# referencian por nombre desde resultados_*.md.
+artifacts/checkpoints*/
+artifacts/pools_*/
+artifacts/backup_bd_*/
+
+# Lo que SI se versiona de artifacts/ son los 3.9 MB de la tuberia: pools de
+# HMOG, scaler, manifiesto y encoder inicial. No son regenerables sin el
+# dataset de HMOG y sin la corrida concreta de Fase 1, y el manifiesto es lo
+# que garantiza que .tflite, scaler y pools vengan todos de la misma
+# exportacion. Perderlos seria perder la reproducibilidad del proyecto.
