@@ -20,3 +20,5 @@ artifacts/backup_bd_*/
 # dataset de HMOG y sin la corrida concreta de Fase 1, y el manifiesto es lo
 # que garantiza que .tflite, scaler y pools vengan todos de la misma
 # exportacion. Perderlos seria perder la reproducibilidad del proyecto.
+# SavedModel intermedio de export_tflite_model.py; el .tflite es la salida.
+artifacts/saved_model_fedper/
