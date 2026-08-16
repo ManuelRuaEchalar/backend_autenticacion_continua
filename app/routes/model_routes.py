@@ -36,7 +36,13 @@ def get_model_info():
     Antes de la Fase 3 este endpoint devolvía `sensor_config="gyro_acc"` y no
     incluía `encoder_flat_size`, que es exactamente por lo que la app abortaba.
     """
-    return jsonify(_get_service().get_model_info()), 200
+    info = _get_service().get_model_info()
+    # El modo de ablación se añade aquí y no en EncoderService: es un ajuste
+    # del experimento, no una propiedad del modelo, y mezclarlo con el
+    # manifiesto invitaría a que acabase comparándose en
+    # `requireCompatibleWith` como si fuera parte del contrato.
+    info["ablation"] = current_app.config.get("ABLATION", "full")
+    return jsonify(info), 200
 
 
 @model_bp.route("/status", methods=["GET"])

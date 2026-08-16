@@ -51,12 +51,17 @@ log = logging.getLogger("mock")
 
 class ClienteSimulado(fl.client.NumPyClient):
     def __init__(self, cid: int, flat_size: int, n_examples: int,
-                 schedule: str, delay: float) -> None:
+                 schedule: str, delay: float,
+                 client_id: str | None = None) -> None:
         self.cid = cid
         self.flat_size = flat_size
         self.n_examples = n_examples
         self.schedule = schedule
         self.delay = delay
+        # Identidad del "dispositivo". Dos procesos lanzados con el MISMO
+        # --client-id simulan el fallo del 2026-08-15: un participante que
+        # pulsa INICIAR FL dos veces y abre dos sesiones desde el mismo móvil.
+        self.client_id = client_id
         self.rng = np.random.RandomState(1000 + cid)
         # Estado "local" persistente, como la cabeza personal del móvil.
         self.encoder = np.zeros(flat_size, dtype=np.float32)
@@ -125,16 +130,15 @@ class ClienteSimulado(fl.client.NumPyClient):
             "[%d] fit  ronda %-3d epochs=%s lr=%-8s n=%d  train_loss=%.4f",
             self.cid, ronda, epochs, lr, self.n_examples, train_loss,
         )
-        return (
-            [self.encoder],
-            self.n_examples,
-            {
-                "train_loss": train_loss,
-                "recon_loss": train_loss * 0.7,
-                "cls_loss": train_loss * 0.3,
-                "duration_ms": float(self.delay * 1000),
-            },
-        )
+        metricas: Dict[str, Scalar] = {
+            "train_loss": train_loss,
+            "recon_loss": train_loss * 0.7,
+            "cls_loss": train_loss * 0.3,
+            "duration_ms": float(self.delay * 1000),
+        }
+        if self.client_id is not None:
+            metricas["client_id"] = self.client_id
+        return ([self.encoder], self.n_examples, metricas)
 
     def evaluate(self, parameters: NDArrays, config: Config
                  ) -> Tuple[float, int, Dict[str, Scalar]]:
@@ -169,6 +173,10 @@ def main() -> None:
     p.add_argument("--delay", type=float, default=0.0,
                    help="Segundos de 'entrenamiento' simulado por ronda")
     p.add_argument("--manifest", type=Path, default=ARTIFACTS / "model_manifest.json")
+    p.add_argument("--client-id", default=None,
+                   help="Identidad del dispositivo (metric `client_id`). Dos "
+                        "procesos con el mismo valor simulan un teléfono que "
+                        "abrió dos sesiones; el servidor debe descartar una.")
     args = p.parse_args()
 
     manifest = json.loads(args.manifest.read_text(encoding="utf-8"))
@@ -179,7 +187,8 @@ def main() -> None:
     fl.client.start_client(
         server_address=args.server,
         client=ClienteSimulado(
-            args.cid, flat_size, args.examples, args.auc_schedule, args.delay
+            args.cid, flat_size, args.examples, args.auc_schedule, args.delay,
+            args.client_id,
         ).to_client(),
     )
 

@@ -51,6 +51,28 @@ def _hora() -> str:
     return datetime.now().strftime("%H:%M:%S")
 
 
+#: Nombre del metric con el que el cliente se identifica en cada `fit`.
+#: Debe coincidir con FlowerGrpcClient.handleFit (app Android).
+METRIC_CLIENT_ID = "client_id"
+
+
+def _identidad(res: FitRes) -> Optional[str]:
+    """
+    Identidad estable del DISPOSITIVO que envió este resultado.
+
+    Flower identifica clientes por CONEXIÓN (`proxy.cid`), no por aparato, así
+    que dos sesiones abiertas desde el mismo teléfono le parecen dos clientes
+    legítimos. El `client_id` es un UUID que la app persiste en preferencias
+    (ClientIdentity.kt), y es lo único que permite distinguir "tres usuarios"
+    de "dos usuarios y uno contado dos veces".
+
+    Devuelve `None` si el cliente no lo manda: un APK anterior a la v1.4 no
+    conoce este metric.
+    """
+    valor = res.metrics.get(METRIC_CLIENT_ID)
+    return valor if isinstance(valor, str) and valor else None
+
+
 def _media_ponderada(pares: List[Tuple[int, Dict[str, Scalar]]]) -> Dict[str, Scalar]:
     """
     Media de cada métrica ponderada por número de muestras.
@@ -193,7 +215,29 @@ class FedPerStrategy(fl.server.strategy.FedAvg):
 
         esperado = self._encoders.encoder_flat_size
         utiles: List[Tuple[ClientProxy, FitRes]] = []
+        # client_id -> cid de la conexión que lo reclamó primero.
+        vistos: Dict[str, str] = {}
+        sin_identidad = 0
         for proxy, res in results:
+            # — Identidad del dispositivo, ANTES que nada —
+            # Un duplicado es una violación del protocolo, no un peso malo: se
+            # descarta pase lo que pase con sus tensores.
+            identidad = _identidad(res)
+            if identidad is None:
+                sin_identidad += 1
+            elif identidad in vistos:
+                logger.error(
+                    "[%s] DISPOSITIVO DUPLICADO en la ronda %d: la conexión %s "
+                    "reporta el mismo client_id (%s) que %s. Se descarta la "
+                    "segunda. Alguien ha pulsado INICIAR FL dos veces en el "
+                    "mismo teléfono; sin este corte pesaría DOBLE en FedAvg.",
+                    _hora(), server_round, proxy.cid, identidad[:8],
+                    vistos[identidad],
+                )
+                continue
+            else:
+                vistos[identidad] = proxy.cid
+
             arrays = parameters_to_ndarrays(res.parameters)
             if len(arrays) != 1:
                 logger.error(
@@ -246,10 +290,41 @@ class FedPerStrategy(fl.server.strategy.FedAvg):
             )
             utiles.append((proxy, res))
 
+        if sin_identidad:
+            # No se descarta a nadie por esto: rompería la compatibilidad con
+            # un APK viejo. Pero tiene que constar, porque mientras haya un
+            # cliente sin identidad la comprobación de duplicados NO cubre la
+            # ronda, y el silencio es justo lo que hizo caro este fallo.
+            logger.warning(
+                "[%s] Ronda %d: %d cliente(s) no enviaron client_id (APK "
+                "anterior a la v1.4). No se puede garantizar que sean "
+                "dispositivos distintos.",
+                _hora(), server_round, sin_identidad,
+            )
+
         if not utiles:
             logger.error("[%s] Ronda %d: ningún cliente aportó pesos válidos",
                          _hora(), server_round)
             return None, {}
+
+        # Censo de la ronda. Con participantes remotos y sin telemetría en el
+        # móvil, este log es lo único que dice QUIÉN entrenó de verdad.
+        if vistos:
+            logger.info(
+                "[%s] Ronda %d: %d dispositivo(s) distintos [%s]",
+                _hora(), server_round, len(vistos),
+                ", ".join(sorted(i[:8] for i in vistos)),
+            )
+
+        if len(utiles) < self.min_fit_clients:
+            # Se agrega igualmente —tirar la ronda entera perdería el trabajo
+            # de los clientes sanos— pero el número resultante ya no es el de
+            # la federación que se pidió, y eso no puede pasar inadvertido.
+            logger.error(
+                "[%s] Ronda %d agregada con %d cliente(s), por debajo de los "
+                "%d exigidos. La media NO representa la federación completa.",
+                _hora(), server_round, len(utiles), self.min_fit_clients,
+            )
 
         parametros, metricas = super().aggregate_fit(server_round, utiles, [])
 

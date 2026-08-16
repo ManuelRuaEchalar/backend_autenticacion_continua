@@ -46,6 +46,12 @@ def parse_args() -> argparse.Namespace:
                         help="Rondas sin mejora de val_auc antes de parar (default: 15)")
     parser.add_argument("--warmup", type=int, default=None,
                         help="Rondas iniciales que no cuentan para la paciencia")
+    parser.add_argument("--ablation", default="full", choices=["full", "baseline", "matched_off", "peer"],
+                        help="'full': filtro de actividad + impostores "
+                             "emparejados por energia. 'baseline': sin filtro y "
+                             "con impostores al azar (comportamiento previo a "
+                             "la v1.6). Lo lee la app de /api/model/info, asi "
+                             "que ambas corridas usan el MISMO APK.")
     parser.add_argument("--debug", action="store_true",
                         help="Modo debug de Flask")
     return parser.parse_args()
@@ -104,6 +110,7 @@ def main() -> None:
             min_evaluate_clients=args.min_clients,
             min_available_clients=args.min_clients,
         )
+    fl_config = replace(fl_config, ablation=args.ablation)
 
     app_config = AppConfig(
         host=args.host, port=args.port, debug=args.debug, fl=fl_config,
@@ -136,6 +143,15 @@ def main() -> None:
     print(f"  gRPC  : {args.host}:{args.grpc_port}")
     print(f"  Rondas: {fl_config.num_rounds}   timeout/ronda: {fl_config.round_timeout:.0f}s"
           f"   clientes mínimos: {fl_config.min_available_clients}")
+    # En grande y en su propia línea: es lo que distingue una corrida de otra
+    # y lo que se leerá al comparar los dos resultados.
+    modo = {
+        "full": "filtro de actividad + impostores emparejados",
+        "baseline": "SIN filtro, impostores al azar (linea base)",
+        "matched_off": "filtro SI, impostores AL AZAR (aisla el emparejado)",
+        "peer": "impostores de OTRO USUARIO REAL (pendiente G)",
+    }[fl_config.ablation]
+    print(f"  ABLACIÓN: {fl_config.ablation.upper()}  -> {modo}")
     print(linea)
     print("  GET /health")
     print("  GET /api/model/info    metadatos y contrato")

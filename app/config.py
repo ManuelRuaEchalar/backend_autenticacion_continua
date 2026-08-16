@@ -161,6 +161,29 @@ class FLConfig:
     # Ajustable con --round-timeout cuando midas los otros equipos.
     round_timeout: float = 900.0
 
+    # — Ablación, para medir el efecto de las correcciones de dominio —
+    #
+    # "full"     : tubería completa (filtro de actividad autocalibrado +
+    #              impostores emparejados por energía).
+    # "baseline"    : sin filtro y con impostores al azar (previo a la v1.6).
+    # "matched_off" : filtro SI, emparejado NO. Es la unica comparacion limpia
+    #                 contra "full": mismo conjunto de ventanas, misma
+    #                 particion, mismas genuinas de test, y la unica variable
+    #                 es de donde salen las impostoras.
+    # "peer"        : impostores de OTRO PARTICIPANTE REAL, con la misma app y
+    #                 la misma tuberia. Exige haber empujado los ficheros del
+    #                 par al dispositivo; si no, la app aborta en vez de caer en
+    #                 silencio a HMOG. Es el pendiente G.
+    #
+    # Se decide en el SERVIDOR y no por compilación a propósito: así los tres
+    # dispositivos llevan el mismo APK y no cabe la duda de si dos corridas
+    # comparables ejecutaron en realidad código distinto. Queda además escrito
+    # en el log del servidor, que es donde se leerá al redactar.
+    #
+    # La app lo lee de GET /api/model/info ANTES de construir su partición,
+    # porque el filtro actúa durante el ventaneo.
+    ablation: str = "full"
+
     # — Entrenamiento local que se envía en on_fit_config_fn —
     local_epochs: int = 5
     learning_rate: float = 1e-3

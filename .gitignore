@@ -8,3 +8,8 @@ htmlcov/
 .DS_Store
 *.log
 .env
+# Salidas de las corridas: checkpoints por ronda, pools y copias de BD.
+# Son artefactos REGENERABLES y pesan decenas de MB; en el historial de git
+# no se pueden quitar despues sin reescribirlo entero. Se conservan en disco
+# y se referencian por nombre desde resultados_*.md.
+artifacts/

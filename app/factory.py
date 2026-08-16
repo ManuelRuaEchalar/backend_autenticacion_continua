@@ -44,6 +44,10 @@ def create_app(config: AppConfig | None = None) -> Flask:
 
     app.config["ENCODER_SERVICE"] = encoder_service
     app.config["FEDERATION_SERVICE"] = federation_service
+    # Modo de ablación, que la app consulta antes de construir su partición.
+    # Vive aquí y no en EncoderService porque es un ajuste del EXPERIMENTO, no
+    # una propiedad del modelo.
+    app.config["ABLATION"] = config.fl.ablation
 
     # ── Rutas base ────────────────────────────────────────────────
     @app.route("/health", methods=["GET"])
